@@ -177,8 +177,10 @@ def play_multiprocessing_local_game(white_player_class, black_player_class,
     # Stored player names become inaccessible (except by cheating: game._LocalGame__game_history...), instead:
     game.player_names = (black_name, white_name)
 
-    player_queues = [{'to player': mp.Queue(), 'to moderator': mp.Queue()},
-                     {'to player': mp.Queue(), 'to moderator': mp.Queue()}]
+    player_queues = {
+        chess.WHITE: {'to player': mp.Queue(), 'to moderator': mp.Queue()},
+        chess.BLACK: {'to player': mp.Queue(), 'to moderator': mp.Queue()}
+    }
 
     player_processes = [mp.Process(target=_play_in_multiprocessing_local_game,
                                    args=(player_queues[chess.BLACK], black_player_class)),
@@ -235,9 +237,8 @@ def _respond_to_requests(game: LocalGame, queues):
     :class:`RemoteGame` subclass, :class:`MultiprocessingLocalGame`.
 
     :param game: The :class:`LocalGame` object to reference for neutral game-state information.
-    :param queues: Multiprocessing Queues for communicating with the players. Stored as a two-element list in
-     [chess.BLACK, chess.WHITE] order. Each color has its own two-element dictionary of queues keyed 'to player' and
-     'to moderator'.
+    :param queues: Multiprocessing Queues for communicating with the players. Stored as a nested dictionary of player
+    color and queue direction: queues[chess.WHITE | chess.BLACK]['to player' | 'to moderator'].
     """
     for color in chess.COLORS:
         if not queues[color]['to moderator'].empty():
