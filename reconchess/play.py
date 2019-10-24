@@ -1,8 +1,10 @@
 import chess
 from .types import *
 from .player import Player
-from .game import Game, LocalGame, RemoteGame
+from .game import Game, LocalGame, RemoteGame, MultiprocessingLocalGame
 from .history import GameHistory
+
+import multiprocessing as mp
 
 
 def play_local_game(white_player: Player, black_player: Player, game: LocalGame = None,
@@ -149,3 +151,115 @@ def play_move(game: Game, player: Player, move_actions: List[chess.Move], end_tu
 
     if end_turn_last:
         game.end_turn()
+
+
+def play_multiprocessing_local_game(white_player_class, black_player_class,
+                                    game: LocalGame = None, seconds_per_player: float = 900)\
+        -> Tuple[Optional[Color], Optional[WinReason], GameHistory]:
+
+    if game is None:
+        game = LocalGame(seconds_per_player=seconds_per_player)
+
+    white_name = white_player_class.__name__
+    black_name = black_player_class.__name__
+    game.store_players(white_name, black_name)
+    # Stored player names become inaccessible (except by cheating: game._LocalGame__game_history...), instead:
+    game.player_names = (black_name, white_name)
+
+    player_queues = [{'to player': mp.Queue(), 'to moderator': mp.Queue()},
+                     {'to player': mp.Queue(), 'to moderator': mp.Queue()}]
+
+    player_processes = [mp.Process(target=_play_in_multiprocessing_local_game,
+                                   args=(player_queues[chess.BLACK], black_player_class)),
+                        mp.Process(target=_play_in_multiprocessing_local_game,
+                                   args=(player_queues[chess.WHITE], white_player_class))]
+
+    [process.start() for process in player_processes]
+
+    game.start()
+
+    while not game.is_over():
+        _respond_to_requests(game, player_queues)
+
+    game.end()
+
+    while any([process.is_alive() for process in player_processes]):
+        _respond_to_requests(game, player_queues)
+
+    winner_color = game.get_winner_color()
+    win_reason = game.get_win_reason()
+    game_history = game.get_game_history()
+
+    return winner_color, win_reason, game_history
+
+
+def _play_in_multiprocessing_local_game(queues, player_class):
+    game = MultiprocessingLocalGame(queues)
+    player = player_class()
+
+    player.handle_game_start(game.get_player_color(), game.get_starting_board(), game.get_opponent_name())
+    game.start()
+
+    while not game.is_over():
+        play_turn(game, player, end_turn_last=False)
+
+    winner_color = game.get_winner_color()
+    win_reason = game.get_win_reason()
+    game_history = game.get_game_history()
+
+    player.handle_game_end(winner_color, win_reason, game_history)
+
+
+def _respond_to_requests(game: LocalGame, queues):
+    """
+    Pass information between the moderator which runs a LocalGame and each player which run their own RemoteGame
+    subclass, "MultiprocessingLocalGame."
+
+    :param game: The :class:`LocalGame` object to reference for neutral game-state information.
+    :param queues: Multiprocessing Queues for communicating with the players. Stored as a two-element list in
+     [chess.BLACK, chess.WHITE] order. Each color has its own two-element dictionary of queues keyed 'to player' and
+     'to moderator'.
+    """
+    for color in chess.COLORS:
+        if not queues[color]['to moderator'].empty():
+            request = queues[color]['to moderator'].get()
+            request_command = request[0]
+            on_own_turn = game.turn == color
+
+            responses = {
+                'color':
+                    lambda: queues[color]['to player'].put({'color': color}),
+                'starting_board':
+                    lambda: queues[color]['to player'].put({'board': chess.Board()}),
+                'opponent_name':
+                    lambda: queues[color]['to player'].put({'opponent_name': game.player_names[not color]}),
+                    # The player_names attribute was "manually" added in moderate_multiprocessing_local_game
+                'sense_actions':
+                    lambda: queues[color]['to player'].put({'sense_actions': game.sense_actions() if on_own_turn else None}),
+                'move_actions':
+                    lambda: queues[color]['to player'].put({'move_actions': game.move_actions() if on_own_turn else None}),
+                'seconds_left':
+                    lambda: queues[color]['to player'].put({'seconds_left': game.get_seconds_left() if on_own_turn else game.seconds_left_by_color[color]}),
+                'ready':
+                    lambda: queues[color]['to player'].put({'ready': 'ready'}),
+                'is_my_turn':
+                    lambda: queues[color]['to player'].put({'is_my_turn': on_own_turn or game.is_over()}),
+                'opponent_move_results':
+                    lambda: queues[color]['to player'].put({'opponent_move_results': game.opponent_move_results() if on_own_turn else None}),
+                'sense':
+                    lambda: queues[color]['to player'].put({'sense_result': game.sense(request[1]['square']) if on_own_turn else None}),
+                'move':
+                    lambda: queues[color]['to player'].put({'move_result': game.move(request[1]['requested_move']) if on_own_turn else None}),
+                'end_turn':
+                    lambda: (game.end_turn() or queues[color]['to player'].put({'end_turn': 'done'})) if on_own_turn else queues[color]['to player'].put(None),
+                'game_status':
+                    lambda: queues[color]['to player'].put({'is_over': game.is_over(), 'is_my_turn': on_own_turn}),
+                'winner_color':
+                    lambda: queues[color]['to player'].put({'winner_color': game.get_winner_color()}),
+                'win_reason':
+                    lambda: queues[color]['to player'].put({'win_reason': game.get_win_reason()}),
+                'game_history':
+                    lambda: queues[color]['to player'].put({'game_history': game.get_game_history()}),
+            }
+
+            responses[request_command]()
