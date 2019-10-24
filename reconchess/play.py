@@ -156,6 +156,17 @@ def play_move(game: Game, player: Player, move_actions: List[chess.Move], end_tu
 def play_multiprocessing_local_game(white_player_class, black_player_class,
                                     game: LocalGame = None, seconds_per_player: float = 900)\
         -> Tuple[Optional[Color], Optional[WinReason], GameHistory]:
+    """
+    Plays a game between the two players passed in. Uses :class:`LocalGame` to run the game, but enables behavior
+    similar to :class:`RemoteGame` by multiprocessing. Unlike :func:`play_local_game` and :func:`play_remote_game`, the
+    players here must be passed as un-initialized classes; TroutBot rather than TroutBot().
+
+    :param white_player_class: The white :class:`Player` un-initialized.
+    :param black_player_class: The black :class:`Player` un-initialized.
+    :param game: The :class:`LocalGame` object to use.
+    :param seconds_per_player: The time each player has to play. Only used if `game` is not passed in.
+    :return: The results of the game, also passed to each player via :meth:`Player.handle_game_end`.
+    """
 
     if game is None:
         game = LocalGame(seconds_per_player=seconds_per_player)
@@ -194,6 +205,14 @@ def play_multiprocessing_local_game(white_player_class, black_player_class,
 
 
 def _play_in_multiprocessing_local_game(queues, player_class):
+    """
+    Each player in a :class:`MultiprocessingLocalGame` uses this to participate in parallel. It mimics
+    :func:`play_remote_game`, but replaces server requests with multiprocessing queues.
+
+    :param queues:
+    :param player_class:
+    :return:
+    """
     game = MultiprocessingLocalGame(queues)
     player = player_class()
 
@@ -212,8 +231,8 @@ def _play_in_multiprocessing_local_game(queues, player_class):
 
 def _respond_to_requests(game: LocalGame, queues):
     """
-    Pass information between the moderator which runs a LocalGame and each player which run their own RemoteGame
-    subclass, "MultiprocessingLocalGame."
+    Pass information between the moderator which runs a :class:`LocalGame` and each player which run their own
+    :class:`RemoteGame` subclass, :class:`MultiprocessingLocalGame`.
 
     :param game: The :class:`LocalGame` object to reference for neutral game-state information.
     :param queues: Multiprocessing Queues for communicating with the players. Stored as a two-element list in
@@ -252,6 +271,7 @@ def _respond_to_requests(game: LocalGame, queues):
                     lambda: queues[color]['to player'].put({'move_result': game.move(request[1]['requested_move']) if on_own_turn else None}),
                 'end_turn':
                     lambda: (game.end_turn() or queues[color]['to player'].put({'end_turn': 'done'})) if on_own_turn else queues[color]['to player'].put(None),
+                    # `game.end_turn() or` is a mess of a shortcut, but it allows both necessary commands to be included in the lambda function
                 'game_status':
                     lambda: queues[color]['to player'].put({'is_over': game.is_over(), 'is_my_turn': on_own_turn}),
                 'winner_color':
