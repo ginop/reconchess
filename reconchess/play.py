@@ -194,11 +194,6 @@ def play_multiprocessing_local_game(white_player_class, black_player_class,
 
     game.start()
 
-    while not game.is_over():
-        _respond_to_requests(game, player_queues)
-
-    game.end()
-
     while any([process.is_alive() for process in player_processes]):
         _respond_to_requests(game, player_queues)
 
@@ -323,3 +318,7 @@ def _respond_to_requests(game: LocalGame, queues):
 
             else:
                 raise KeyError(f'Requested command {request_command} is not implemented')
+
+            # After each action, check if the game has ended
+            if game.is_over():
+                game.end()
