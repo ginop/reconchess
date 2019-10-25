@@ -154,7 +154,7 @@ def play_move(game: Game, player: Player, move_actions: List[chess.Move], end_tu
 
 
 def play_multiprocessing_local_game(white_player_class, black_player_class,
-                                    game: LocalGame = None, seconds_per_player: float = 900)\
+                                    game: LocalGame = None, seconds_per_player: float = 900) \
         -> Tuple[Optional[Color], Optional[WinReason], GameHistory]:
     """
     Plays a game between the two players passed in. Uses :class:`LocalGame` to run the game, but enables behavior
@@ -174,7 +174,8 @@ def play_multiprocessing_local_game(white_player_class, black_player_class,
     white_name = white_player_class.__name__
     black_name = black_player_class.__name__
     game.store_players(white_name, black_name)
-    # Stored player names become inaccessible (except by cheating: game._LocalGame__game_history...), instead:
+
+    # Stored player names become inaccessible from game (except by cheating: game._LocalGame__game_history...), instead:
     game.player_names = {
         chess.WHITE: white_name,
         chess.BLACK: black_name
@@ -185,10 +186,10 @@ def play_multiprocessing_local_game(white_player_class, black_player_class,
         chess.BLACK: {'to player': mp.Queue(), 'to moderator': mp.Queue()}
     }
 
-    player_processes = [mp.Process(target=_play_in_multiprocessing_local_game,
-                                   args=(player_queues[chess.BLACK], black_player_class)),
-                        mp.Process(target=_play_in_multiprocessing_local_game,
-                                   args=(player_queues[chess.WHITE], white_player_class))]
+    player_processes = [
+        mp.Process(target=_play_in_multiprocessing_local_game, args=(player_queues[chess.BLACK], black_player_class)),
+        mp.Process(target=_play_in_multiprocessing_local_game, args=(player_queues[chess.WHITE], white_player_class))
+    ]
 
     [process.start() for process in player_processes]
 
