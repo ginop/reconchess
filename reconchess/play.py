@@ -209,7 +209,7 @@ def _play_in_multiprocessing_local_game(queues, player_class):
     Each player in a :class:`MultiprocessingLocalGame` uses this to participate in parallel. It mimics
     :func:`play_remote_game`, but replaces server requests with multiprocessing queues.
 
-    :param queues: this player's dict of multiprocessing queues keyed 'to player' and 'to moderator'
+    :param queues: This player's dictionary of multiprocessing queues keyed 'to player' and 'to moderator'
     :param player_class: The :class:`Player` un-initialized.
     """
     game = MultiprocessingLocalGame(queues)
@@ -231,7 +231,7 @@ def _play_in_multiprocessing_local_game(queues, player_class):
 def _respond_to_requests(game: LocalGame, queues):
     """
     Pass information between the moderator which runs a :class:`LocalGame` and each player which run their own
-    :class:`RemoteGame` subclass, :class:`MultiprocessingLocalGame`.
+    :class:`RemoteGame` sub-class, :class:`MultiprocessingLocalGame`.
 
     :param game: The :class:`LocalGame` object to reference for neutral game-state information.
     :param queues: Multiprocessing Queues for communicating with the players. Stored as a nested dictionary of player
