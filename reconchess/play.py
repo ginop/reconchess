@@ -246,41 +246,78 @@ def _respond_to_requests(game: LocalGame, queues):
             request_command = request[0]
             on_own_turn = game.turn == color
 
-            responses = {
-                'color':
-                    lambda: queues[color]['to player'].put({'color': color}),
-                'starting_board':
-                    lambda: queues[color]['to player'].put({'board': chess.Board()}),
-                'opponent_name':
-                    lambda: queues[color]['to player'].put({'opponent_name': game.player_names[not color]}),
-                    # The player_names attribute was "manually" added in moderate_multiprocessing_local_game
-                'sense_actions':
-                    lambda: queues[color]['to player'].put({'sense_actions': game.sense_actions() if on_own_turn else None}),
-                'move_actions':
-                    lambda: queues[color]['to player'].put({'move_actions': game.move_actions() if on_own_turn else None}),
-                'seconds_left':
-                    lambda: queues[color]['to player'].put({'seconds_left': game.get_seconds_left() if on_own_turn else game.seconds_left_by_color[color]}),
-                'ready':
-                    lambda: queues[color]['to player'].put({'ready': 'ready'}),
-                'is_my_turn':
-                    lambda: queues[color]['to player'].put({'is_my_turn': on_own_turn or game.is_over()}),
-                'opponent_move_results':
-                    lambda: queues[color]['to player'].put({'opponent_move_results': game.opponent_move_results() if on_own_turn else None}),
-                'sense':
-                    lambda: queues[color]['to player'].put({'sense_result': game.sense(request[1]['square']) if on_own_turn else None}),
-                'move':
-                    lambda: queues[color]['to player'].put({'move_result': game.move(request[1]['requested_move']) if on_own_turn else None}),
-                'end_turn':
-                    lambda: (game.end_turn() or queues[color]['to player'].put({'end_turn': 'done'})) if on_own_turn else queues[color]['to player'].put(None),
-                    # `game.end_turn() or` is a mess of a shortcut, but it allows both necessary commands to be included in the lambda function
-                'game_status':
-                    lambda: queues[color]['to player'].put({'is_over': game.is_over(), 'is_my_turn': on_own_turn}),
-                'winner_color':
-                    lambda: queues[color]['to player'].put({'winner_color': game.get_winner_color()}),
-                'win_reason':
-                    lambda: queues[color]['to player'].put({'win_reason': game.get_win_reason()}),
-                'game_history':
-                    lambda: queues[color]['to player'].put({'game_history': game.get_game_history()}),
-            }
+            if request_command == 'color':
+                queues[color]['to player'].put({'color': color})
 
-            responses[request_command]()
+            elif request_command == 'starting_board':
+                queues[color]['to player'].put({'board': chess.Board()})
+
+            elif request_command == 'opponent_name':
+                queues[color]['to player'].put({'opponent_name': game.player_names[not color]})
+                # This attribute was added in moderate_multiprocessing_local_game, since the names become hard to access
+
+            elif request_command == 'sense_actions':
+                if on_own_turn:
+                    queues[color]['to player'].put({'sense_actions': game.sense_actions()})
+                else:
+                    queues[color]['to player'].put(None)
+
+            elif request_command == 'move_actions':
+                if on_own_turn:
+                    queues[color]['to player'].put({'move_actions': game.move_actions()})
+                else:
+                    queues[color]['to player'].put(None)
+
+            elif request_command == 'seconds_left':
+                if on_own_turn:
+                    queues[color]['to player'].put({'seconds_left': game.get_seconds_left()})
+                else:
+                    queues[color]['to player'].put({'seconds_left': game.seconds_left_by_color[color]})
+
+            elif request_command == 'ready':
+                queues[color]['to player'].put({'ready': 'ready'})
+
+            elif request_command == 'is_my_turn':
+                queues[color]['to player'].put({'is_my_turn': on_own_turn or game.is_over()})
+
+            elif request_command == 'opponent_move_results':
+                if on_own_turn:
+                    queues[color]['to player'].put({'opponent_move_results': game.opponent_move_results()})
+                else:
+                    queues[color]['to player'].put(None)
+
+            elif request_command == 'sense':
+                request_value = request[1]
+                if on_own_turn:
+                    queues[color]['to player'].put({'sense_result': game.sense(request_value['square'])})
+                else:
+                    queues[color]['to player'].put(None)
+
+            elif request_command == 'move':
+                request_value = request[1]
+                if on_own_turn:
+                    queues[color]['to player'].put({'move_result': game.move(request_value['requested_move'])})
+                else:
+                    queues[color]['to player'].put(None)
+
+            elif request_command == 'end_turn':
+                if on_own_turn:
+                    game.end_turn()
+                    queues[color]['to player'].put({'end_turn': 'done'})
+                else:
+                    queues[color]['to player'].put(None)
+
+            elif request_command == 'game_status':
+                queues[color]['to player'].put({'is_over': game.is_over(), 'is_my_turn': on_own_turn})
+
+            elif request_command == 'winner_color':
+                queues[color]['to player'].put({'winner_color': game.get_winner_color()})
+
+            elif request_command == 'win_reason':
+                queues[color]['to player'].put({'win_reason': game.get_win_reason()})
+
+            elif request_command == 'game_history':
+                queues[color]['to player'].put({'game_history': game.get_game_history()})
+
+            else:
+                raise KeyError(f'Requested command {request_command} is not implemented')
