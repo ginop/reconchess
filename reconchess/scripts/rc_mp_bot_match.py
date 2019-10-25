@@ -2,8 +2,7 @@ import argparse
 import datetime
 import traceback
 import chess
-from reconchess import load_player, LocalGame
-from reconchess.play import play_multiprocessing_local_game
+from reconchess import load_player, LocalGame, play_multiprocessing_local_game
 
 
 def main():
