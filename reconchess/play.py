@@ -175,7 +175,10 @@ def play_multiprocessing_local_game(white_player_class, black_player_class,
     black_name = black_player_class.__name__
     game.store_players(white_name, black_name)
     # Stored player names become inaccessible (except by cheating: game._LocalGame__game_history...), instead:
-    game.player_names = (black_name, white_name)
+    game.player_names = {
+        chess.WHITE: white_name,
+        chess.BLACK: black_name
+    }
 
     player_queues = {
         chess.WHITE: {'to player': mp.Queue(), 'to moderator': mp.Queue()},
