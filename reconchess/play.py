@@ -242,7 +242,7 @@ def _respond_to_requests(game: LocalGame, queues):
     :param queues: Multiprocessing Queues for communicating with the players. Stored as a nested dictionary of player
     color and queue direction: queues[chess.WHITE | chess.BLACK]['to player' | 'to moderator'].
     """
-    for color in chess.COLORS:
+    for color in [game.turn, not game.turn]:
         if not queues[color]['to moderator'].empty():
             request = queues[color]['to moderator'].get()
             request_command = request[0]
